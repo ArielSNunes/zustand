@@ -1,39 +1,73 @@
 {
   "name": "zustand",
   "private": true,
-  "version": "3.1.4",
+  "version": "3.6.8",
   "description": "🐻 Bear necessities for state management in React",
-  "main": "index.cjs.js",
-  "module": "index.js",
-  "types": "index.d.ts",
+  "main": "./index.js",
+  "types": "./index.d.ts",
   "files": [
     "**"
   ],
+  "exports": {
+    "./package.json": "./package.json",
+    ".": {
+      "types": "./index.d.ts",
+      "module": "./esm/index.js",
+      "import": "./esm/index.mjs",
+      "default": "./index.js"
+    },
+    "./vanilla": {
+      "types": "./vanilla.d.ts",
+      "module": "./esm/vanilla.js",
+      "import": "./esm/vanilla.mjs",
+      "default": "./vanilla.js"
+    },
+    "./middleware": {
+      "types": "./middleware.d.ts",
+      "module": "./esm/middleware.js",
+      "import": "./esm/middleware.mjs",
+      "default": "./middleware.js"
+    },
+    "./shallow": {
+      "types": "./shallow.d.ts",
+      "module": "./esm/shallow.js",
+      "import": "./esm/shallow.mjs",
+      "default": "./shallow.js"
+    },
+    "./context": {
+      "types": "./context.d.ts",
+      "module": "./esm/context.js",
+      "import": "./esm/context.mjs",
+      "default": "./context.js"
+    }
+  },
   "sideEffects": false,
   "scripts": {
-    "prebuild": "rimraf dist",
-    "build": "rollup -c",
+    "prebuild": "shx rm -rf dist",
+    "build": "concurrently 'yarn:build:*'",
+    "build:base": "rollup -c",
+    "build:vanilla": "rollup -c --config-vanilla",
+    "build:middleware": "rollup -c --config-middleware",
+    "build:shallow": "rollup -c --config-shallow",
+    "build:context": "rollup -c --config-context",
     "postbuild": "yarn copy",
-    "eslint": "eslint --fix 'src/**/*.{js,ts,jsx,tsx}'",
-    "eslint-examples": "eslint --fix 'examples/src/**/*.{js,ts,jsx,tsx}'",
-    "eslint:ci": "eslint '{src,examples/src}/**/*.{js,ts,jsx,tsx}'",
-    "prepare": "yarn build",
+    "eslint": "eslint --fix '*.{js,json}' '{src,tests}/**/*.{ts,tsx}'",
+    "eslint:ci": "eslint '*.{js,json}' '{src,tests}/**/*.{ts,tsx}'",
     "pretest": "tsc --noEmit",
     "test": "jest",
+    "test:ci": "jest",
     "test:dev": "jest --watch --no-coverage",
     "test:coverage:watch": "jest --watch",
-    "copy": "mv dist/src/* dist && rm -rf dist/{src,tests} && copyfiles -f package.json readme.md LICENSE dist && json -I -f dist/package.json -e \"this.private=false; this.devDependencies=undefined; this.optionalDependencies=undefined; this.scripts=undefined; this.husky=undefined; this.prettier=undefined; this.jest=undefined; this['lint-staged']=undefined;\""
+    "copy": "shx cp -r dist/src/* dist/esm && shx mv dist/src/* dist && shx rm -rf dist/{src,tests} && shx cp package.json readme.md LICENSE dist && json -I -f dist/package.json -e \"this.private=false; this.devDependencies=undefined; this.optionalDependencies=undefined; this.scripts=undefined; this.prettier=undefined; this.jest=undefined; this['lint-staged']=undefined;\""
   },
-  "husky": {
-    "hooks": {
-      "pre-commit": "lint-staged"
-    }
+  "engines": {
+    "node": ">=12.7.0"
   },
   "prettier": {
     "semi": false,
     "trailingComma": "es5",
     "singleQuote": true,
-    "jsxBracketSameLine": true,
+    "bracketSameLine": true,
     "tabWidth": 2,
     "printWidth": 80
   },
@@ -44,7 +78,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/react-spring/zustand.git"
+    "url": "git+https://github.com/pmndrs/zustand.git"
   },
   "keywords": [
     "react",
@@ -61,10 +95,24 @@
   ],
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/react-spring/zustand/issues"
+    "url": "https://github.com/pmndrs/zustand/issues"
   },
-  "homepage": "https://github.com/react-spring/zustand",
+  "homepage": "https://github.com/pmndrs/zustand",
   "jest": {
+    "rootDir": ".",
+    "testEnvironment": "jsdom",
+    "transform": {
+      "^.+\\.(t|j)sx?$": [
+        "@swc/jest"
+      ]
+    },
+    "moduleNameMapper": {
+      "^zustand$": "<rootDir>/src/index.ts",
+      "^zustand/(.*)$": "<rootDir>/src/$1.ts"
+    },
+    "modulePathIgnorePatterns": [
+      "dist"
+    ],
     "testRegex": "test.(js|ts|tsx)$",
     "coverageDirectory": "./coverage/",
     "collectCoverage": true,
@@ -80,43 +128,52 @@
     ]
   },
   "devDependencies": {
-    "@babel/core": "^7.12.3",
-    "@babel/plugin-external-helpers": "^7.12.1",
-    "@babel/plugin-transform-react-jsx": "^7.12.5",
-    "@babel/plugin-transform-runtime": "^7.12.1",
-    "@babel/plugin-transform-typescript": "^7.12.1",
-    "@babel/preset-env": "^7.12.1",
-    "@rollup/plugin-babel": "^5.2.1",
-    "@rollup/plugin-node-resolve": "^10.0.0",
-    "@rollup/plugin-typescript": "^6.1.0",
-    "@testing-library/react": "^11.1.1",
-    "@types/jest": "^26.0.15",
-    "@types/react": "^16.9.56",
-    "@types/react-dom": "^16.9.9",
-    "@typescript-eslint/eslint-plugin": "^4.6.1",
-    "@typescript-eslint/parser": "^4.6.1",
-    "copyfiles": "^2.4.0",
-    "eslint": "^7.13.0",
-    "eslint-config-prettier": "^6.15.0",
+    "@babel/core": "^7.16.5",
+    "@babel/plugin-external-helpers": "^7.16.5",
+    "@babel/plugin-transform-react-jsx": "^7.16.5",
+    "@babel/plugin-transform-runtime": "^7.16.5",
+    "@babel/plugin-transform-typescript": "^7.16.1",
+    "@babel/preset-env": "^7.16.5",
+    "@rollup/plugin-babel": "^5.3.0",
+    "@rollup/plugin-node-resolve": "^13.1.1",
+    "@rollup/plugin-typescript": "^8.3.0",
+    "@swc/core": "^1.2.122",
+    "@swc/jest": "^0.2.15",
+    "@testing-library/react": "^12.1.2",
+    "@types/jest": "^27.0.3",
+    "@types/react": "^17.0.38",
+    "@types/react-dom": "^17.0.11",
+    "@typescript-eslint/eslint-plugin": "^5.8.0",
+    "@typescript-eslint/parser": "^5.8.0",
+    "concurrently": "^6.5.1",
+    "esbuild": "^0.14.8",
+    "eslint": "^8.5.0",
+    "eslint-config-prettier": "^8.3.0",
     "eslint-import-resolver-alias": "^1.1.2",
-    "eslint-plugin-import": "^2.22.1",
-    "eslint-plugin-jest": "^24.1.0",
-    "eslint-plugin-prettier": "^3.1.4",
-    "eslint-plugin-react": "^7.21.5",
-    "eslint-plugin-react-hooks": "^4.2.0",
-    "husky": "^4.3.0",
-    "jest": "^26.6.3",
-    "json": "^10.0.0",
-    "lint-staged": "^10.5.1",
-    "prettier": "^2.1.2",
-    "react": "^17.0.1",
-    "react-dom": "^17.0.1",
-    "rimraf": "^3.0.2",
-    "rollup": "^2.33.1",
-    "rollup-plugin-size-snapshot": "^0.12.0",
-    "typescript": "^4.0.5"
+    "eslint-plugin-import": "^2.25.3",
+    "eslint-plugin-jest": "^25.3.0",
+    "eslint-plugin-prettier": "^4.0.0",
+    "eslint-plugin-react": "^7.28.0",
+    "eslint-plugin-react-hooks": "^4.3.0",
+    "husky": "^7.0.4",
+    "immer": "^9.0.7",
+    "jest": "^27.4.5",
+    "json": "^11.0.0",
+    "lint-staged": "^12.1.3",
+    "prettier": "^2.5.1",
+    "react": "^17.0.2",
+    "react-dom": "^17.0.2",
+    "rollup": "^2.62.0",
+    "rollup-plugin-esbuild": "^4.7.2",
+    "shx": "^0.3.3",
+    "typescript": "^4.5.4"
   },
   "peerDependencies": {
     "react": ">=16.8"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
   }
 }
