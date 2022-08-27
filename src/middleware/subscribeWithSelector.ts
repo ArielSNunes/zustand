@@ -1,50 +1,61 @@
-import {
-  EqualityChecker,
-  GetState,
-  SetState,
-  State,
-  StateListener,
-  StateSelector,
-  StateSliceListener,
-  StoreApi,
-  Subscribe,
-} from '../vanilla'
+import type { StateCreator, StoreMutatorIdentifier } from '../vanilla'
 
-export type StoreApiWithSubscribeWithSelector<T extends State> = Omit<
-  StoreApi<T>,
-  'subscribe' // FIXME remove omit in v4
-> & {
+type SubscribeWithSelector = <
+  T,
+  Mps extends [StoreMutatorIdentifier, unknown][] = [],
+  Mcs extends [StoreMutatorIdentifier, unknown][] = []
+>(
+  initializer: StateCreator<
+    T,
+    [...Mps, ['zustand/subscribeWithSelector', never]],
+    Mcs
+  >
+) => StateCreator<T, Mps, [['zustand/subscribeWithSelector', never], ...Mcs]>
+
+type Write<T, U> = Omit<T, keyof U> & U
+
+type WithSelectorSubscribe<S> = S extends { getState: () => infer T }
+  ? Write<S, StoreSubscribeWithSelector<T>>
+  : never
+
+declare module '../vanilla' {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  interface StoreMutators<S, A> {
+    ['zustand/subscribeWithSelector']: WithSelectorSubscribe<S>
+  }
+}
+
+type StoreSubscribeWithSelector<T> = {
   subscribe: {
-    (listener: StateListener<T>): () => void
-    <StateSlice>(
-      selector: StateSelector<T, StateSlice>,
-      listener: StateSliceListener<StateSlice>,
+    (listener: (selectedState: T, previousSelectedState: T) => void): () => void
+    <U>(
+      selector: (state: T) => U,
+      listener: (selectedState: U, previousSelectedState: U) => void,
       options?: {
-        equalityFn?: EqualityChecker<StateSlice>
+        equalityFn?: (a: U, b: U) => boolean
         fireImmediately?: boolean
       }
     ): () => void
   }
 }
 
-export const subscribeWithSelector =
-  <
-    S extends State,
-    CustomSetState extends SetState<S>,
-    CustomGetState extends GetState<S>,
-    CustomStoreApi extends StoreApi<S>
-  >(
-    fn: (set: CustomSetState, get: CustomGetState, api: CustomStoreApi) => S
-  ) =>
-  (
-    set: CustomSetState,
-    get: CustomGetState,
-    api: Omit<CustomStoreApi, 'subscribe'> & // FIXME remove omit in v4
-      StoreApiWithSubscribeWithSelector<S>
-  ): S => {
-    const origSubscribe = api.subscribe as Subscribe<S>
+type SubscribeWithSelectorImpl = <T extends object>(
+  storeInitializer: PopArgument<StateCreator<T, [], []>>
+) => PopArgument<StateCreator<T, [], []>>
+
+type PopArgument<T extends (...a: never[]) => unknown> = T extends (
+  ...a: [...infer A, infer _]
+) => infer R
+  ? (...a: A) => R
+  : never
+
+const subscribeWithSelectorImpl: SubscribeWithSelectorImpl =
+  (fn) => (set, get, api) => {
+    type S = ReturnType<typeof fn>
+    type Listener = (state: S, previousState: S) => void
+    const origSubscribe = api.subscribe as (listener: Listener) => () => void
     api.subscribe = ((selector: any, optListener: any, options: any) => {
-      let listener: StateListener<S> = selector // if no selector
+      let listener: Listener = selector // if no selector
       if (optListener) {
         const equalityFn = options?.equalityFn || Object.is
         let currentSlice = selector(api.getState())
@@ -61,10 +72,8 @@ export const subscribeWithSelector =
       }
       return origSubscribe(listener)
     }) as any
-    const initialState = fn(
-      set,
-      get,
-      api as CustomStoreApi // FIXME can remove in v4?
-    )
+    const initialState = fn(set, get, api)
     return initialState
   }
+export const subscribeWithSelector =
+  subscribeWithSelectorImpl as unknown as SubscribeWithSelector

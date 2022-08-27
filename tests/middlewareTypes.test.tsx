@@ -1,50 +1,13 @@
-import { produce } from 'immer'
-import type { Draft } from 'immer'
-import create, {
-  GetState,
-  SetState,
-  State,
-  StateCreator,
-  StoreApi,
-} from 'zustand'
+import create, { StoreApi } from 'zustand'
 import {
-  PersistOptions,
-  StoreApiWithDevtools,
-  StoreApiWithPersist,
-  StoreApiWithSubscribeWithSelector,
   combine,
   devtools,
   persist,
   redux,
   subscribeWithSelector,
 } from 'zustand/middleware'
-
-const immer =
-  <
-    T extends State,
-    CustomSetState extends SetState<T>,
-    CustomGetState extends GetState<T>,
-    CustomStoreApi extends StoreApi<T>
-  >(
-    config: StateCreator<
-      T,
-      (partial: ((draft: Draft<T>) => void) | T, replace?: boolean) => void,
-      CustomGetState,
-      CustomStoreApi
-    >
-  ): StateCreator<T, CustomSetState, CustomGetState, CustomStoreApi> =>
-  (set, get, api) =>
-    config(
-      (partial, replace) => {
-        const nextState =
-          typeof partial === 'function'
-            ? produce(partial as (state: Draft<T>) => T)
-            : (partial as T)
-        return set(nextState, replace)
-      },
-      get,
-      api
-    )
+import { immer } from 'zustand/middleware/immer'
+import createVanilla from 'zustand/vanilla'
 
 type CounterState = {
   count: number
@@ -53,17 +16,17 @@ type CounterState = {
 
 describe('counter state spec (no middleware)', () => {
   it('no middleware', () => {
-    const useStore = create<CounterState>((set, get) => ({
+    const useBoundStore = create<CounterState>((set, get) => ({
       count: 0,
       inc: () => set({ count: get().count + 1 }, false),
     }))
     const TestComponent = () => {
-      useStore((s) => s.count) * 2
-      useStore((s) => s.inc)()
-      useStore().count * 2
-      useStore().inc()
-      useStore.getState().count * 2
-      useStore.getState().inc()
+      useBoundStore((s) => s.count) * 2
+      useBoundStore((s) => s.inc)()
+      useBoundStore().count * 2
+      useBoundStore().inc()
+      useBoundStore.getState().count * 2
+      useBoundStore.getState().inc()
       return <></>
     }
     TestComponent
@@ -71,8 +34,16 @@ describe('counter state spec (no middleware)', () => {
 })
 
 describe('counter state spec (single middleware)', () => {
+  let savedDEV: boolean
+  beforeEach(() => {
+    savedDEV = __DEV__
+  })
+  afterEach(() => {
+    __DEV__ = savedDEV
+  })
+
   it('immer', () => {
-    const useStore = create<CounterState>(
+    const useBoundStore = create<CounterState>()(
       immer((set, get) => ({
         count: 0,
         inc: () =>
@@ -82,19 +53,23 @@ describe('counter state spec (single middleware)', () => {
       }))
     )
     const TestComponent = () => {
-      useStore((s) => s.count) * 2
-      useStore((s) => s.inc)()
-      useStore().count * 2
-      useStore().inc()
-      useStore.getState().count * 2
-      useStore.getState().inc()
+      useBoundStore((s) => s.count) * 2
+      useBoundStore((s) => s.inc)()
+      useBoundStore().count * 2
+      useBoundStore().inc()
+      useBoundStore.getState().count * 2
+      useBoundStore.getState().inc()
       return <></>
     }
     TestComponent
+
+    const _testSubtyping: StoreApi<object> = createVanilla(
+      immer(() => ({ count: 0 }))
+    )
   })
 
   it('redux', () => {
-    const useStore = create(
+    const useBoundStore = create(
       redux<{ count: number }, { type: 'INC' }>(
         (state, action) => {
           switch (action.type) {
@@ -108,22 +83,22 @@ describe('counter state spec (single middleware)', () => {
       )
     )
     const TestComponent = () => {
-      useStore((s) => s.count) * 2
-      useStore((s) => s.dispatch)({ type: 'INC' })
-      useStore().dispatch({ type: 'INC' })
-      useStore.dispatch({ type: 'INC' })
+      useBoundStore((s) => s.count) * 2
+      useBoundStore((s) => s.dispatch)({ type: 'INC' })
+      useBoundStore().dispatch({ type: 'INC' })
+      useBoundStore.dispatch({ type: 'INC' })
       return <></>
     }
     TestComponent
+
+    const _testSubtyping: StoreApi<object> = createVanilla(
+      redux((x) => x, { count: 0 })
+    )
   })
 
   it('devtools', () => {
-    const useStore = create<
-      CounterState,
-      SetState<CounterState>,
-      GetState<CounterState>,
-      StoreApiWithDevtools<CounterState>
-    >(
+    __DEV__ = false
+    const useBoundStore = create<CounterState>()(
       devtools(
         (set, get) => ({
           count: 0,
@@ -133,71 +108,73 @@ describe('counter state spec (single middleware)', () => {
       )
     )
     const TestComponent = () => {
-      useStore((s) => s.count) * 2
-      useStore((s) => s.inc)()
-      useStore().count * 2
-      useStore().inc()
-      useStore.getState().count * 2
-      useStore.getState().inc()
-      useStore.setState({ count: 0 }, false, 'reset')
+      useBoundStore((s) => s.count) * 2
+      useBoundStore((s) => s.inc)()
+      useBoundStore().count * 2
+      useBoundStore().inc()
+      useBoundStore.getState().count * 2
+      useBoundStore.getState().inc()
+      useBoundStore.setState({ count: 0 }, false, 'reset')
       return <></>
     }
     TestComponent
+
+    const _testSubtyping: StoreApi<object> = createVanilla(
+      devtools(() => ({ count: 0 }))
+    )
   })
 
   it('subscribeWithSelector', () => {
-    const useStore = create<
-      CounterState,
-      SetState<CounterState>,
-      GetState<CounterState>,
-      StoreApiWithSubscribeWithSelector<CounterState>
-    >(
+    const useBoundStore = create<CounterState>()(
       subscribeWithSelector((set, get) => ({
         count: 1,
         inc: () => set({ count: get().count + 1 }, false),
       }))
     )
     const TestComponent = () => {
-      useStore((s) => s.count) * 2
-      useStore((s) => s.inc)()
-      useStore().count * 2
-      useStore().inc()
-      useStore.getState().count * 2
-      useStore.getState().inc()
-      useStore.subscribe(
+      useBoundStore((s) => s.count) * 2
+      useBoundStore((s) => s.inc)()
+      useBoundStore().count * 2
+      useBoundStore().inc()
+      useBoundStore.getState().count * 2
+      useBoundStore.getState().inc()
+      useBoundStore.subscribe(
         (state) => state.count,
         (count) => console.log(count * 2)
       )
       return <></>
     }
     TestComponent
+
+    const _testSubtyping: StoreApi<object> = createVanilla(
+      subscribeWithSelector(() => ({ count: 0 }))
+    )
   })
 
   it('combine', () => {
-    const useStore = create(
+    const useBoundStore = create(
       combine({ count: 1 }, (set, get) => ({
         inc: () => set({ count: get().count + 1 }, false),
       }))
     )
     const TestComponent = () => {
-      useStore((s) => s.count) * 2
-      useStore((s) => s.inc)()
-      useStore().count * 2
-      useStore().inc()
-      useStore.getState().count * 2
-      useStore.getState().inc()
+      useBoundStore((s) => s.count) * 2
+      useBoundStore((s) => s.inc)()
+      useBoundStore().count * 2
+      useBoundStore().inc()
+      useBoundStore.getState().count * 2
+      useBoundStore.getState().inc()
       return <></>
     }
     TestComponent
+
+    const _testSubtyping: StoreApi<object> = createVanilla(
+      combine({ count: 0 }, () => ({}))
+    )
   })
 
   it('persist', () => {
-    const useStore = create<
-      CounterState,
-      SetState<CounterState>,
-      GetState<CounterState>,
-      StoreApiWithPersist<CounterState>
-    >(
+    const useBoundStore = create<CounterState>()(
       persist(
         (set, get) => ({
           count: 1,
@@ -207,20 +184,51 @@ describe('counter state spec (single middleware)', () => {
       )
     )
     const TestComponent = () => {
-      useStore((s) => s.count) * 2
-      useStore((s) => s.inc)()
-      useStore().count * 2
-      useStore().inc()
-      useStore.getState().count * 2
-      useStore.getState().inc()
-      useStore.persist.hasHydrated()
+      useBoundStore((s) => s.count) * 2
+      useBoundStore((s) => s.inc)()
+      useBoundStore().count * 2
+      useBoundStore().inc()
+      useBoundStore.getState().count * 2
+      useBoundStore.getState().inc()
+      useBoundStore.persist.hasHydrated()
+      return <></>
+    }
+    TestComponent
+
+    const _testSubtyping: StoreApi<object> = createVanilla(
+      persist(() => ({ count: 0 }))
+    )
+  })
+
+  it('persist with partialize', () => {
+    const useBoundStore = create<CounterState>()(
+      persist(
+        (set, get) => ({
+          count: 1,
+          inc: () => set({ count: get().count + 1 }, false),
+        }),
+        { name: 'prefix', partialize: (s) => s.count }
+      )
+    )
+    const TestComponent = () => {
+      useBoundStore((s) => s.count) * 2
+      useBoundStore((s) => s.inc)()
+      useBoundStore().count * 2
+      useBoundStore().inc()
+      useBoundStore.getState().count * 2
+      useBoundStore.getState().inc()
+      useBoundStore.persist.hasHydrated()
+      useBoundStore.persist.setOptions({
+        // @ts-expect-error to test if the partialized state is inferred as number
+        partialize: () => 'not-a-number',
+      })
       return <></>
     }
     TestComponent
   })
 
   it('persist without custom api (#638)', () => {
-    const useStore = create<CounterState>(
+    const useBoundStore = create<CounterState>()(
       persist(
         (set, get) => ({
           count: 1,
@@ -230,12 +238,12 @@ describe('counter state spec (single middleware)', () => {
       )
     )
     const TestComponent = () => {
-      useStore((s) => s.count) * 2
-      useStore((s) => s.inc)()
-      useStore().count * 2
-      useStore().inc()
-      useStore.getState().count * 2
-      useStore.getState().inc()
+      useBoundStore((s) => s.count) * 2
+      useBoundStore((s) => s.inc)()
+      useBoundStore().count * 2
+      useBoundStore().inc()
+      useBoundStore.getState().count * 2
+      useBoundStore.getState().inc()
       return <></>
     }
     TestComponent
@@ -243,42 +251,53 @@ describe('counter state spec (single middleware)', () => {
 })
 
 describe('counter state spec (double middleware)', () => {
-  it('devtools & immer', () => {
-    const useStore = create<
-      CounterState,
-      SetState<CounterState>,
-      GetState<CounterState>,
-      StoreApiWithDevtools<CounterState>
-    >(
-      devtools(
-        immer((set, get) => ({
-          count: 0,
-          inc: () =>
-            set((state) => {
-              state.count = get().count + 1
-            }),
-        })),
-        { name: 'prefix' }
+  let savedDEV: boolean
+  beforeEach(() => {
+    savedDEV = __DEV__
+  })
+  afterEach(() => {
+    __DEV__ = savedDEV
+  })
+
+  it('immer & devtools', () => {
+    __DEV__ = false
+    const useBoundStore = create<CounterState>()(
+      immer(
+        devtools(
+          (set, get) => ({
+            count: 0,
+            inc: () =>
+              set(
+                (state) => {
+                  state.count = get().count + 1
+                },
+                false,
+                { type: 'inc', by: 1 }
+              ),
+          }),
+          { name: 'prefix' }
+        )
       )
     )
     const TestComponent = () => {
-      useStore((s) => s.count) * 2
-      useStore((s) => s.inc)()
-      useStore().count * 2
-      useStore().inc()
-      useStore.getState().count * 2
-      useStore.getState().inc()
-      useStore.setState({ count: 0 }, false, 'reset')
+      useBoundStore((s) => s.count) * 2
+      useBoundStore((s) => s.inc)()
+      useBoundStore().count * 2
+      useBoundStore().inc()
+      useBoundStore.getState().count * 2
+      useBoundStore.getState().inc()
+      useBoundStore.setState({ count: 0 }, false, 'reset')
       return <></>
     }
     TestComponent
   })
 
   it('devtools & redux', () => {
-    const useStore = create(
+    __DEV__ = false
+    const useBoundStore = create(
       devtools(
-        redux<{ count: number }, { type: 'INC' }>(
-          (state, action) => {
+        redux(
+          (state, action: { type: 'INC' }) => {
             switch (action.type) {
               case 'INC':
                 return { ...state, count: state.count + 1 }
@@ -292,18 +311,19 @@ describe('counter state spec (double middleware)', () => {
       )
     )
     const TestComponent = () => {
-      useStore((s) => s.count) * 2
-      useStore((s) => s.dispatch)({ type: 'INC' })
-      useStore().dispatch({ type: 'INC' })
-      useStore.dispatch({ type: 'INC' })
-      useStore.setState({ count: 0 }, false, 'reset')
+      useBoundStore((s) => s.count) * 2
+      useBoundStore((s) => s.dispatch)({ type: 'INC' })
+      useBoundStore().dispatch({ type: 'INC' })
+      useBoundStore.dispatch({ type: 'INC' })
+      useBoundStore.setState({ count: 0 }, false, 'reset')
       return <></>
     }
     TestComponent
   })
 
   it('devtools & combine', () => {
-    const useStore = create(
+    __DEV__ = false
+    const useBoundStore = create(
       devtools(
         combine({ count: 1 }, (set, get) => ({
           inc: () => set({ count: get().count + 1 }, false, 'inc'),
@@ -312,20 +332,20 @@ describe('counter state spec (double middleware)', () => {
       )
     )
     const TestComponent = () => {
-      useStore((s) => s.count) * 2
-      useStore((s) => s.inc)()
-      useStore().count * 2
-      useStore().inc()
-      useStore.getState().count * 2
-      useStore.getState().inc()
-      useStore.setState({ count: 0 }, false, 'reset')
+      useBoundStore((s) => s.count) * 2
+      useBoundStore((s) => s.inc)()
+      useBoundStore().count * 2
+      useBoundStore().inc()
+      useBoundStore.getState().count * 2
+      useBoundStore.getState().inc()
+      useBoundStore.setState({ count: 0 }, false, 'reset')
       return <></>
     }
     TestComponent
   })
 
   it('subscribeWithSelector & combine', () => {
-    const useStore = create(
+    const useBoundStore = create(
       subscribeWithSelector(
         combine({ count: 1 }, (set, get) => ({
           inc: () => set({ count: get().count + 1 }, false),
@@ -333,13 +353,13 @@ describe('counter state spec (double middleware)', () => {
       )
     )
     const TestComponent = () => {
-      useStore((s) => s.count) * 2
-      useStore((s) => s.inc)()
-      useStore().count * 2
-      useStore().inc()
-      useStore.getState().count * 2
-      useStore.getState().inc()
-      useStore.subscribe(
+      useBoundStore((s) => s.count) * 2
+      useBoundStore((s) => s.inc)()
+      useBoundStore().count * 2
+      useBoundStore().inc()
+      useBoundStore.getState().count * 2
+      useBoundStore.getState().inc()
+      useBoundStore.subscribe(
         (state) => state.count,
         (count) => console.log(count * 2)
       )
@@ -349,13 +369,8 @@ describe('counter state spec (double middleware)', () => {
   })
 
   it('devtools & subscribeWithSelector', () => {
-    const useStore = create<
-      CounterState,
-      SetState<CounterState>,
-      GetState<CounterState>,
-      StoreApiWithSubscribeWithSelector<CounterState> &
-        StoreApiWithDevtools<CounterState>
-    >(
+    __DEV__ = false
+    const useBoundStore = create<CounterState>()(
       devtools(
         subscribeWithSelector((set, get) => ({
           count: 1,
@@ -365,29 +380,25 @@ describe('counter state spec (double middleware)', () => {
       )
     )
     const TestComponent = () => {
-      useStore((s) => s.count) * 2
-      useStore((s) => s.inc)()
-      useStore().count * 2
-      useStore().inc()
-      useStore.getState().count * 2
-      useStore.getState().inc()
-      useStore.subscribe(
+      useBoundStore((s) => s.count) * 2
+      useBoundStore((s) => s.inc)()
+      useBoundStore().count * 2
+      useBoundStore().inc()
+      useBoundStore.getState().count * 2
+      useBoundStore.getState().inc()
+      useBoundStore.subscribe(
         (state) => state.count,
         (count) => console.log(count * 2)
       )
-      useStore.setState({ count: 0 }, false, 'reset')
+      useBoundStore.setState({ count: 0 }, false, 'reset')
       return <></>
     }
     TestComponent
   })
 
   it('devtools & persist', () => {
-    const useStore = create<
-      CounterState,
-      SetState<CounterState>,
-      GetState<CounterState>,
-      StoreApiWithPersist<CounterState> & StoreApiWithDevtools<CounterState>
-    >(
+    __DEV__ = false
+    const useBoundStore = create<CounterState>()(
       devtools(
         persist(
           (set, get) => ({
@@ -400,14 +411,14 @@ describe('counter state spec (double middleware)', () => {
       )
     )
     const TestComponent = () => {
-      useStore((s) => s.count) * 2
-      useStore((s) => s.inc)()
-      useStore().count * 2
-      useStore().inc()
-      useStore.getState().count * 2
-      useStore.getState().inc()
-      useStore.setState({ count: 0 }, false, 'reset')
-      useStore.persist.hasHydrated()
+      useBoundStore((s) => s.count) * 2
+      useBoundStore((s) => s.inc)()
+      useBoundStore().count * 2
+      useBoundStore().inc()
+      useBoundStore.getState().count * 2
+      useBoundStore.getState().inc()
+      useBoundStore.setState({ count: 0 }, false, 'reset')
+      useBoundStore.persist.hasHydrated()
       return <></>
     }
     TestComponent
@@ -415,13 +426,17 @@ describe('counter state spec (double middleware)', () => {
 })
 
 describe('counter state spec (triple middleware)', () => {
+  let savedDEV: boolean
+  beforeEach(() => {
+    savedDEV = __DEV__
+  })
+  afterEach(() => {
+    __DEV__ = savedDEV
+  })
+
   it('devtools & persist & immer', () => {
-    const useStore = create<
-      CounterState,
-      SetState<CounterState>,
-      GetState<CounterState>,
-      StoreApiWithPersist<CounterState> & StoreApiWithDevtools<CounterState>
-    >(
+    __DEV__ = false
+    const useBoundStore = create<CounterState>()(
       devtools(
         persist(
           immer((set, get) => ({
@@ -437,21 +452,22 @@ describe('counter state spec (triple middleware)', () => {
       )
     )
     const TestComponent = () => {
-      useStore((s) => s.count) * 2
-      useStore((s) => s.inc)()
-      useStore().count * 2
-      useStore().inc()
-      useStore.getState().count * 2
-      useStore.getState().inc()
-      useStore.setState({ count: 0 }, false, 'reset')
-      useStore.persist.hasHydrated()
+      useBoundStore((s) => s.count) * 2
+      useBoundStore((s) => s.inc)()
+      useBoundStore().count * 2
+      useBoundStore().inc()
+      useBoundStore.getState().count * 2
+      useBoundStore.getState().inc()
+      useBoundStore.setState({ count: 0 }, false, 'reset')
+      useBoundStore.persist.hasHydrated()
       return <></>
     }
     TestComponent
   })
 
   it('devtools & subscribeWithSelector & combine', () => {
-    const useStore = create(
+    __DEV__ = false
+    const useBoundStore = create(
       devtools(
         subscribeWithSelector(
           combine({ count: 1 }, (set, get) => ({
@@ -462,31 +478,25 @@ describe('counter state spec (triple middleware)', () => {
       )
     )
     const TestComponent = () => {
-      useStore((s) => s.count) * 2
-      useStore((s) => s.inc)()
-      useStore().count * 2
-      useStore().inc()
-      useStore.getState().count * 2
-      useStore.getState().inc()
-      useStore.subscribe(
+      useBoundStore((s) => s.count) * 2
+      useBoundStore((s) => s.inc)()
+      useBoundStore().count * 2
+      useBoundStore().inc()
+      useBoundStore.getState().count * 2
+      useBoundStore.getState().inc()
+      useBoundStore.subscribe(
         (state) => state.count,
         (count) => console.log(count * 2)
       )
-      useStore.setState({ count: 0 }, false, 'reset')
+      useBoundStore.setState({ count: 0 }, false, 'reset')
       return <></>
     }
     TestComponent
   })
 
   it('devtools & subscribeWithSelector & persist', () => {
-    const useStore = create<
-      CounterState,
-      SetState<CounterState>,
-      GetState<CounterState>,
-      StoreApiWithSubscribeWithSelector<CounterState> &
-        StoreApiWithPersist<CounterState> &
-        StoreApiWithDevtools<CounterState>
-    >(
+    __DEV__ = false
+    const useBoundStore = create<CounterState>()(
       devtools(
         subscribeWithSelector(
           persist(
@@ -501,18 +511,18 @@ describe('counter state spec (triple middleware)', () => {
       )
     )
     const TestComponent = () => {
-      useStore((s) => s.count) * 2
-      useStore((s) => s.inc)()
-      useStore().count * 2
-      useStore().inc()
-      useStore.getState().count * 2
-      useStore.getState().inc()
-      useStore.subscribe(
+      useBoundStore((s) => s.count) * 2
+      useBoundStore((s) => s.inc)()
+      useBoundStore().count * 2
+      useBoundStore().inc()
+      useBoundStore.getState().count * 2
+      useBoundStore.getState().inc()
+      useBoundStore.subscribe(
         (state) => state.count,
         (count) => console.log(count * 2)
       )
-      useStore.setState({ count: 0 }, false, 'reset')
-      useStore.persist.hasHydrated()
+      useBoundStore.setState({ count: 0 }, false, 'reset')
+      useBoundStore.persist.hasHydrated()
       return <></>
     }
     TestComponent
@@ -520,15 +530,17 @@ describe('counter state spec (triple middleware)', () => {
 })
 
 describe('counter state spec (quadruple middleware)', () => {
+  let savedDEV: boolean
+  beforeEach(() => {
+    savedDEV = __DEV__
+  })
+  afterEach(() => {
+    __DEV__ = savedDEV
+  })
+
   it('devtools & subscribeWithSelector & persist & immer (#616)', () => {
-    const useStore = create<
-      CounterState,
-      SetState<CounterState>,
-      GetState<CounterState>,
-      StoreApiWithSubscribeWithSelector<CounterState> &
-        StoreApiWithPersist<CounterState> &
-        StoreApiWithDevtools<CounterState>
-    >(
+    __DEV__ = false
+    const useBoundStore = create<CounterState>()(
       devtools(
         subscribeWithSelector(
           persist(
@@ -546,18 +558,18 @@ describe('counter state spec (quadruple middleware)', () => {
       )
     )
     const TestComponent = () => {
-      useStore((s) => s.count) * 2
-      useStore((s) => s.inc)()
-      useStore().count * 2
-      useStore().inc()
-      useStore.getState().count * 2
-      useStore.getState().inc()
-      useStore.subscribe(
+      useBoundStore((s) => s.count) * 2
+      useBoundStore((s) => s.inc)()
+      useBoundStore().count * 2
+      useBoundStore().inc()
+      useBoundStore.getState().count * 2
+      useBoundStore.getState().inc()
+      useBoundStore.subscribe(
         (state) => state.count,
         (count) => console.log(count * 2)
       )
-      useStore.setState({ count: 0 }, false, 'reset')
-      useStore.persist.hasHydrated()
+      useBoundStore.setState({ count: 0 }, false, 'reset')
+      useBoundStore.persist.hasHydrated()
       return <></>
     }
     TestComponent
@@ -566,19 +578,9 @@ describe('counter state spec (quadruple middleware)', () => {
 
 describe('more complex state spec with subscribeWithSelector', () => {
   it('#619, #632', () => {
-    type MyState = {
-      foo: boolean
-    }
-    const useStore = create(
+    const useBoundStore = create(
       subscribeWithSelector(
-        // NOTE: Adding type annotation to inner middleware works.
-        persist<
-          MyState,
-          SetState<MyState>,
-          GetState<MyState>,
-          StoreApiWithSubscribeWithSelector<MyState> &
-            StoreApiWithPersist<MyState>
-        >(
+        persist(
           () => ({
             foo: true,
           }),
@@ -587,14 +589,14 @@ describe('more complex state spec with subscribeWithSelector', () => {
       )
     )
     const TestComponent = () => {
-      useStore((s) => s.foo)
-      useStore().foo
-      useStore.getState().foo
-      useStore.subscribe(
+      useBoundStore((s) => s.foo)
+      useBoundStore().foo
+      useBoundStore.getState().foo
+      useBoundStore.subscribe(
         (state) => state.foo,
         (foo) => console.log(foo)
       )
-      useStore.persist.hasHydrated()
+      useBoundStore.persist.hasHydrated()
       return <></>
     }
     TestComponent
@@ -604,12 +606,7 @@ describe('more complex state spec with subscribeWithSelector', () => {
     type MyState = {
       foo: number | null
     }
-    const useStore = create<
-      MyState,
-      SetState<MyState>,
-      GetState<MyState>,
-      StoreApiWithSubscribeWithSelector<MyState>
-    >(
+    const useBoundStore = create<MyState>()(
       subscribeWithSelector(
         () =>
           ({
@@ -618,10 +615,10 @@ describe('more complex state spec with subscribeWithSelector', () => {
       )
     )
     const TestComponent = () => {
-      useStore((s) => s.foo)
-      useStore().foo
-      useStore.getState().foo
-      useStore.subscribe(
+      useBoundStore((s) => s.foo)
+      useBoundStore().foo
+      useBoundStore.getState().foo
+      useBoundStore.subscribe(
         (state) => state.foo,
         (foo) => console.log(foo)
       )
@@ -636,13 +633,8 @@ describe('more complex state spec with subscribeWithSelector', () => {
       authenticated: boolean
       authenticate: (username: string, password: string) => Promise<void>
     }
-    // NOTE: This is a simplified middleware type without persist api
-    type MyPersist = (
-      config: StateCreator<MyState>,
-      options: PersistOptions<MyState>
-    ) => StateCreator<MyState>
-    const useStore = create<MyState>(
-      (persist as MyPersist)(
+    const useBoundStore = create<MyState>()(
+      persist(
         (set) => ({
           token: undefined,
           authenticated: false,
@@ -654,12 +646,50 @@ describe('more complex state spec with subscribeWithSelector', () => {
       )
     )
     const TestComponent = () => {
-      useStore((s) => s.authenticated)
-      useStore((s) => s.authenticate)('u', 'p')
-      useStore().authenticated
-      useStore().authenticate('u', 'p')
-      useStore.getState().authenticated
-      useStore.getState().authenticate('u', 'p')
+      useBoundStore((s) => s.authenticated)
+      useBoundStore((s) => s.authenticate)('u', 'p')
+      useBoundStore().authenticated
+      useBoundStore().authenticate('u', 'p')
+      useBoundStore.getState().authenticated
+      useBoundStore.getState().authenticate('u', 'p')
+      return <></>
+    }
+    TestComponent
+  })
+})
+
+describe('create with explicitly annotated mutators', () => {
+  it('subscribeWithSelector & persist', () => {
+    const useBoundStore = create<
+      CounterState,
+      [
+        ['zustand/subscribeWithSelector', never],
+        ['zustand/persist', CounterState]
+      ]
+    >(
+      subscribeWithSelector(
+        persist(
+          (set, get) => ({
+            count: 0,
+            inc: () => set({ count: get().count + 1 }, false),
+          }),
+          { name: 'count' }
+        )
+      )
+    )
+    const TestComponent = () => {
+      useBoundStore((s) => s.count) * 2
+      useBoundStore((s) => s.inc)()
+      useBoundStore().count * 2
+      useBoundStore().inc()
+      useBoundStore.getState().count * 2
+      useBoundStore.getState().inc()
+      useBoundStore.subscribe(
+        (state) => state.count,
+        (count) => console.log(count * 2)
+      )
+      useBoundStore.setState({ count: 0 }, false)
+      useBoundStore.persist.hasHydrated()
       return <></>
     }
     TestComponent

@@ -1,13 +1,10 @@
-import React from 'react'
 import Highlight, { defaultProps } from 'prism-react-renderer'
-import { CopyButton } from './CopyButton'
-import 'prismjs'
-import 'prismjs/components/prism-jsx.min'
+import CopyButton from './CopyButton'
 import 'prismjs/themes/prism-okaidia.css'
 
-function CodePreview({ code, ...props }) {
+export default function CodePreview({ code, ...props }) {
   return (
-    <Highlight {...defaultProps} className="language-jsx" code={code} language="jsx" theme={undefined}>
+    <Highlight {...defaultProps} code={code} language="jsx" theme={undefined}>
       {({ className, style, tokens, getLineProps, getTokenProps }) => (
         // define how each line is to be rendered in the code block,
         // position is set to relative so the copy button can align to bottom right
@@ -25,4 +22,3 @@ function CodePreview({ code, ...props }) {
     </Highlight>
   )
 }
-export default CodePreview

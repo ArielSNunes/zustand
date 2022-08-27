@@ -7,7 +7,7 @@ import {
 } from 'react'
 import { act, fireEvent, render } from '@testing-library/react'
 import ReactDOM from 'react-dom'
-import create, { EqualityChecker, SetState, StateSelector } from 'zustand'
+import create, { StoreApi } from 'zustand'
 
 const consoleError = console.error
 afterEach(() => {
@@ -43,13 +43,13 @@ type CounterState = {
 }
 
 it('uses the store with no args', async () => {
-  const useStore = create<CounterState>((set) => ({
+  const useBoundStore = create<CounterState>((set) => ({
     count: 0,
     inc: () => set((state) => ({ count: state.count + 1 })),
   }))
 
   function Counter() {
-    const { count, inc } = useStore()
+    const { count, inc } = useBoundStore()
     useEffect(inc, [inc])
     return <div>count: {count}</div>
   }
@@ -60,14 +60,14 @@ it('uses the store with no args', async () => {
 })
 
 it('uses the store with selectors', async () => {
-  const useStore = create<CounterState>((set) => ({
+  const useBoundStore = create<CounterState>((set) => ({
     count: 0,
     inc: () => set((state) => ({ count: state.count + 1 })),
   }))
 
   function Counter() {
-    const count = useStore((s) => s.count)
-    const inc = useStore((s) => s.inc)
+    const count = useBoundStore((s) => s.count)
+    const inc = useBoundStore((s) => s.inc)
     useEffect(inc, [inc])
     return <div>count: {count}</div>
   }
@@ -78,13 +78,13 @@ it('uses the store with selectors', async () => {
 })
 
 it('uses the store with a selector and equality checker', async () => {
-  const useStore = create(() => ({ item: { value: 0 } }))
-  const { setState } = useStore
+  const useBoundStore = create(() => ({ item: { value: 0 } }))
+  const { setState } = useBoundStore
   let renderCount = 0
 
   function Component() {
     // Prevent re-render if new value === 1.
-    const item = useStore(
+    const item = useBoundStore(
       (s) => s.item,
       (_, newItem) => newItem.value === 1
     )
@@ -109,7 +109,7 @@ it('uses the store with a selector and equality checker', async () => {
 })
 
 it('only re-renders if selected state has changed', async () => {
-  const useStore = create<CounterState>((set) => ({
+  const useBoundStore = create<CounterState>((set) => ({
     count: 0,
     inc: () => set((state) => ({ count: state.count + 1 })),
   }))
@@ -117,13 +117,13 @@ it('only re-renders if selected state has changed', async () => {
   let controlRenderCount = 0
 
   function Counter() {
-    const count = useStore((state) => state.count)
+    const count = useBoundStore((state) => state.count)
     counterRenderCount++
     return <div>count: {count}</div>
   }
 
   function Control() {
-    const inc = useStore((state) => state.inc)
+    const inc = useBoundStore((state) => state.inc)
     controlRenderCount++
     return <button onClick={inc}>button</button>
   }
@@ -143,31 +143,14 @@ it('only re-renders if selected state has changed', async () => {
   expect(controlRenderCount).toBe(1)
 })
 
-it('re-renders with useLayoutEffect', async () => {
-  const useStore = create(() => ({ state: false }))
-
-  function Component() {
-    const { state } = useStore()
-    useLayoutEffect(() => {
-      useStore.setState({ state: true })
-    }, [])
-    return <>{`${state}`}</>
-  }
-
-  const container = document.createElement('div')
-  ReactDOM.render(<Component />, container)
-  expect(container.innerHTML).toBe('true')
-  ReactDOM.unmountComponentAtNode(container)
-})
-
 it('can batch updates', async () => {
-  const useStore = create<CounterState>((set) => ({
+  const useBoundStore = create<CounterState>((set) => ({
     count: 0,
     inc: () => set((state) => ({ count: state.count + 1 })),
   }))
 
   function Counter() {
-    const { count, inc } = useStore()
+    const { count, inc } = useBoundStore()
     useEffect(() => {
       ReactDOM.unstable_batchedUpdates(() => {
         inc()
@@ -184,14 +167,14 @@ it('can batch updates', async () => {
 
 it('can update the selector', async () => {
   type State = { one: string; two: string }
-  type Props = { selector: StateSelector<State, string> }
-  const useStore = create<State>(() => ({
+  type Props = { selector: (state: State) => string }
+  const useBoundStore = create<State>(() => ({
     one: 'one',
     two: 'two',
   }))
 
   function Component({ selector }: Props) {
-    return <div>{useStore(selector)}</div>
+    return <div>{useBoundStore(selector)}</div>
   }
 
   const { findByText, rerender } = render(<Component selector={(s) => s.one} />)
@@ -203,14 +186,14 @@ it('can update the selector', async () => {
 
 it('can update the equality checker', async () => {
   type State = { value: number }
-  type Props = { equalityFn: EqualityChecker<number> }
-  const useStore = create<State>(() => ({ value: 0 }))
-  const { setState } = useStore
-  const selector: StateSelector<State, number> = (s) => s.value
+  type Props = { equalityFn: (a: State, b: State) => boolean }
+  const useBoundStore = create<State>(() => ({ value: 0 }))
+  const { setState } = useBoundStore
+  const selector = (s: State) => s
 
   let renderCount = 0
   function Component({ equalityFn }: Props) {
-    const value = useStore(selector, equalityFn)
+    const { value } = useBoundStore(selector, equalityFn)
     return (
       <div>
         renderCount: {++renderCount}, value: {value}
@@ -235,19 +218,19 @@ it('can update the equality checker', async () => {
   await findByText('renderCount: 3, value: 0')
 })
 
-it('can call useStore with progressively more arguments', async () => {
+it('can call useBoundStore with progressively more arguments', async () => {
   type State = { value: number }
   type Props = {
-    selector?: StateSelector<State, number>
-    equalityFn?: EqualityChecker<number>
+    selector?: (state: State) => number
+    equalityFn?: (a: number, b: number) => boolean
   }
 
-  const useStore = create<State>(() => ({ value: 0 }))
-  const { setState } = useStore
+  const useBoundStore = create<State>(() => ({ value: 0 }))
+  const { setState } = useBoundStore
 
   let renderCount = 0
   function Component({ selector, equalityFn }: Props) {
-    const value = useStore(selector as any, equalityFn)
+    const value = useBoundStore(selector as any, equalityFn)
     return (
       <div>
         renderCount: {++renderCount}, value: {JSON.stringify(value)}
@@ -284,9 +267,9 @@ it('can throw an error in selector', async () => {
   type State = { value: string | number }
 
   const initialState: State = { value: 'foo' }
-  const useStore = create<State>(() => initialState)
-  const { setState } = useStore
-  const selector: StateSelector<State, string | void> = (s) =>
+  const useBoundStore = create<State>(() => initialState)
+  const { setState } = useBoundStore
+  const selector = (s: State) =>
     // @ts-expect-error This function is supposed to throw an error
     s.value.toUpperCase()
 
@@ -307,7 +290,7 @@ it('can throw an error in selector', async () => {
   }
 
   function Component() {
-    useStore(selector)
+    useBoundStore(selector)
     return <div>no error</div>
   }
 
@@ -329,10 +312,10 @@ it('can throw an error in equality checker', async () => {
   type State = { value: string | number }
 
   const initialState: State = { value: 'foo' }
-  const useStore = create(() => initialState)
-  const { setState } = useStore
-  const selector: StateSelector<State, State> = (s) => s
-  const equalityFn: EqualityChecker<State> = (a, b) =>
+  const useBoundStore = create(() => initialState)
+  const { setState } = useBoundStore
+  const selector = (s: State) => s
+  const equalityFn = (a: State, b: State) =>
     // @ts-expect-error This function is supposed to throw an error
     a.value.trim() === b.value.trim()
 
@@ -353,7 +336,7 @@ it('can throw an error in equality checker', async () => {
   }
 
   function Component() {
-    useStore(selector, equalityFn)
+    useBoundStore(selector, equalityFn)
     return <div>no error</div>
   }
 
@@ -389,8 +372,8 @@ it('can get the store', () => {
 it('can set the store', () => {
   type State = {
     value: number
-    setState1: SetState<State>
-    setState2: SetState<State>
+    setState1: StoreApi<State>['setState']
+    setState2: StoreApi<State>['setState']
   }
 
   const { setState, getState } = create<State>((set) => ({
@@ -437,8 +420,8 @@ it('can destroy the store', () => {
 
 it('only calls selectors when necessary', async () => {
   type State = { a: number; b: number }
-  const useStore = create<State>(() => ({ a: 0, b: 0 }))
-  const { setState } = useStore
+  const useBoundStore = create<State>(() => ({ a: 0, b: 0 }))
+  const { setState } = useBoundStore
   let inlineSelectorCallCount = 0
   let staticSelectorCallCount = 0
 
@@ -448,8 +431,8 @@ it('only calls selectors when necessary', async () => {
   }
 
   function Component() {
-    useStore((s) => (inlineSelectorCallCount++, s.b))
-    useStore(staticSelector)
+    useBoundStore((s) => (inlineSelectorCallCount++, s.b))
+    useBoundStore(staticSelector)
     return (
       <>
         <div>inline: {inlineSelectorCallCount}</div>
@@ -476,13 +459,13 @@ it('ensures parent components subscribe before children', async () => {
     children: { [key: string]: { text: string } }
   }
   type Props = { id: string }
-  const useStore = create<State>(() => ({
+  const useBoundStore = create<State>(() => ({
     children: {
       '1': { text: 'child 1' },
       '2': { text: 'child 2' },
     },
   }))
-  const api = useStore
+  const api = useBoundStore
 
   function changeState() {
     api.setState({
@@ -493,12 +476,12 @@ it('ensures parent components subscribe before children', async () => {
   }
 
   function Child({ id }: Props) {
-    const text = useStore((s) => s.children[id]?.text)
+    const text = useBoundStore((s) => s.children[id]?.text)
     return <div>{text}</div>
   }
 
   function Parent() {
-    const childStates = useStore((s) => s.children)
+    const childStates = useBoundStore((s) => s.children)
     return (
       <>
         <button onClick={changeState}>change state</button>
@@ -518,15 +501,15 @@ it('ensures parent components subscribe before children', async () => {
 
 // https://github.com/pmndrs/zustand/issues/84
 it('ensures the correct subscriber is removed on unmount', async () => {
-  const useStore = create(() => ({ count: 0 }))
-  const api = useStore
+  const useBoundStore = create(() => ({ count: 0 }))
+  const api = useBoundStore
 
   function increment() {
     api.setState(({ count }) => ({ count: count + 1 }))
   }
 
   function Count() {
-    const c = useStore((s) => s.count)
+    const c = useBoundStore((s) => s.count)
     return <div>count: {c}</div>
   }
 
@@ -559,16 +542,16 @@ it('ensures the correct subscriber is removed on unmount', async () => {
 
 // https://github.com/pmndrs/zustand/issues/86
 it('ensures a subscriber is not mistakenly overwritten', async () => {
-  const useStore = create(() => ({ count: 0 }))
-  const { setState } = useStore
+  const useBoundStore = create(() => ({ count: 0 }))
+  const { setState } = useBoundStore
 
   function Count1() {
-    const c = useStore((s) => s.count)
+    const c = useBoundStore((s) => s.count)
     return <div>count1: {c}</div>
   }
 
   function Count2() {
-    const c = useStore((s) => s.count)
+    const c = useBoundStore((s) => s.count)
     return <div>count2: {c}</div>
   }
 
@@ -592,4 +575,26 @@ it('ensures a subscriber is not mistakenly overwritten', async () => {
 
   expect((await findAllByText('count1: 1')).length).toBe(2)
   expect((await findAllByText('count2: 1')).length).toBe(1)
+})
+
+it('works with non-object state', async () => {
+  const useCount = create(() => 1)
+  const inc = () => useCount.setState((c) => c + 1)
+
+  const Counter = () => {
+    const count = useCount()
+    return (
+      <>
+        <div>count: {count}</div>
+        <button onClick={inc}>button</button>
+      </>
+    )
+  }
+
+  const { getByText, findByText } = render(<Counter />)
+
+  await findByText('count: 1')
+
+  fireEvent.click(getByText('button'))
+  await findByText('count: 2')
 })

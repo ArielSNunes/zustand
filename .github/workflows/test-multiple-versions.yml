@@ -13,7 +13,7 @@ jobs:
       - uses: actions/checkout@v2
       - uses: actions/setup-node@v2
         with:
-          node-version: '12'
+          node-version: '14'
           cache: yarn
       - run: git fetch --depth=1 origin +refs/tags/*:refs/tags/*
       - run: yarn install --frozen-lockfile --check-files
@@ -30,12 +30,11 @@ jobs:
         react:
           - 16.8.0
           - 17.0.0
-          - 18.0.0-rc.0
-          - 0.0.0-experimental-20212349a-20211223
-        testing: [default, alpha]
-        exclude:
-          - { react: 16.8.0, testing: alpha }
-          - { react: 17.0.0, testing: alpha }
+          - 18.0.0
+          - 18.1.0
+          - 18.2.0
+          - 18.3.0-next-19e9a4c68-20220818
+          - 0.0.0-experimental-19e9a4c68-20220818
     steps:
       - uses: actions/checkout@v2
       - uses: actions/setup-node@v2
@@ -44,9 +43,9 @@ jobs:
           cache: yarn
       - run: git fetch --depth=1 origin +refs/tags/*:refs/tags/*
       - run: yarn install --frozen-lockfile --check-files
-      - name: Install alpha testing-library
-        if: ${{ matrix.testing == 'alpha' }}
-        run: yarn add -D @testing-library/react@alpha
+      - name: Install legacy testing-library
+        if: ${{ startsWith(matrix.react, '16.') || startsWith(matrix.react, '17.') }}
+        run: yarn add -D @testing-library/react@12.1.4
       - name: Patch for React 16
         if: ${{ startsWith(matrix.react, '16.') }}
         run: |
