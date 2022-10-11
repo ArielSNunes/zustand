@@ -302,7 +302,7 @@ const Component = () => {
 There are two major differences between Zustand and Jotai. Firstly, Zustand is a
 single store, while Jotai consists of primitive atoms that can be composed
 together. Secondly, a Zustand store is an external store, making it more
-suitable when when access outside of React is required.
+suitable when access outside of React is required.
 
 **Zustand**
 
@@ -386,7 +386,7 @@ const Component = () => {
 ### State Model
 
 The difference between Zustand and Recoil is similar to that between Zustand and
-Recoil. Recoil depends on atom string keys instead of atom object referential
+Jotai. Recoil depends on atom string keys instead of atom object referential
 identities, additionally, Recoil needs to wrap your app in a context provider.
 
 **Zustand**
